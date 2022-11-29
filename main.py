@@ -33,8 +33,8 @@ def _format_prevs(prevs: dict) -> dict:
     for navigation_index, ref in enumerate(prevs, start=1):
         transaction = API.transaction(ref)
         content_type = transaction['cty']
-        lamport_clock = transaction['lc'] # See https://martinfowler.com/articles/patterns-of-distributed-systems/lamport-clock.html
-        formatted.append(f'#{lamport_clock} ({content_type}) [{navigation_index}]')
+        global_index = transaction['index']
+        formatted.append(f'#{global_index} ({content_type}) [{navigation_index}]')
 
     # Return the formatted prevs list, which will be displayed to the user
     return formatted
@@ -44,6 +44,7 @@ def top_window(stdscr):
     # Setup curses
     stdscr.clear()
     stdscr.refresh()
+    stdscr.scrollok(True)
 
     # Get all of the transactions available on the nuts node
     cursor = 0
@@ -77,9 +78,12 @@ def top_window(stdscr):
 
         # Print the help line
         height, width = stdscr.getmaxyx()
-        stdscr.addstr(height-1, 0, 'q to quit | left/right/home(g)/end(G) to browse | 1-9 to navigate links | b to go back')
+        help_items = ['q: quit', 'left/right/home(g)/end(G): browse', '1-9: navigate links', 'r: reload']
+        if history:
+            help_items.append(f'b: back to #{history[-1]}')
+        stdscr.addstr(height-1, 0, ' | '.join(help_items))
 
-        # Get the input key
+        # Wait for and read an input key
         key = stdscr.getkey()
 
         # Left arrow key moves cursor back in the transaction list
@@ -88,32 +92,36 @@ def top_window(stdscr):
             cursor = max(0, cursor-1)
 
         # Right arrow key moves cursor forward in the transaction list
-        if key == 'KEY_RIGHT':
+        elif key == 'KEY_RIGHT':
             last_cursor = cursor
             cursor = min(API.transaction_count()-1, cursor+1)
 
         # Home goes to the 0th transaction in the list
-        if key == 'KEY_HOME' or key == 'g':
+        elif key == 'KEY_HOME' or key == 'g':
             cursor = 0
 
         # End goes to the last transaction in the list
-        if key == 'KEY_END' or key == 'G':
+        elif key == 'KEY_END' or key == 'G':
             cursor = API.transaction_count() - 1
 
         # Q/q quits the application
-        if key == 'q' or key == 'Q':
+        elif key == 'q' or key == 'Q':
             return
 
+        # r clear the cache, reloading data from the API
+        elif key == 'r':
+            API.cache_clear()
+
         # 1-9 navigates to the Nth specified prev transaction (if it exists)
-        if key in ['1', '2', '3', '4', '5', '6', '7', '8', '9']:
+        elif key in ['1', '2', '3', '4', '5', '6', '7', '8', '9']:
             prev_index = int(key) - 1
             if 'prevs' in transaction and len(transaction['prevs']) > prev_index:
                 history.append(cursor)
                 linked_transaction = API.transaction(transaction['prevs'][prev_index])
-                cursor = linked_transaction['lc']
+                cursor = linked_transaction['index']
 
         # b navigates back to the previously shown transaction (if possible)
-        if key == 'b':
+        elif key == 'b':
             if history:
                 cursor = history.pop()
 
