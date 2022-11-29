@@ -39,8 +39,7 @@ def refs() -> list[str]:
         # not returned by the server
         ref = sha256(transaction.encode('utf-8')).hexdigest()
 
-        # Append this ref to the list of known refs, making this function an
-        # iterator
+        # Append this ref to the list of known refs
         refs.append(ref)
 
     # Return the transaction refs
@@ -63,6 +62,10 @@ def transaction(ref) -> dict:
     # Add the ref value if not already present in the transaction data
     if 'ref' not in details:
         details['ref'] = ref
+    
+    # Add the index for this transaction, the position at which it occurs in the global list of transactions
+    if 'index' not in details:
+        details['index'] = refs().index(ref)
 
     # Return the transaction data fields
     return details
